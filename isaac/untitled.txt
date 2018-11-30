@@ -1,8 +1,0 @@
-vi_en_train_pairs = [(vi.train[i], en.train[i]) for i in range(len(vi.train))]
-vi_en_train_pairs_num = 
-
-vi_en_dev_pairs = [(vi.dev[i], en.dev[i]) for i in range(len(vi.dev))]
-vi_en_dev_pairs_num = 
-
-vi_en_test_pairs = [(vi.test[i], en.test[i]) for i in range(len(vi.test))]
-vi_en_test_pairs_num = [(vi.test_num[i], en.test_num[i]) for i in range(len(vi.test_num))]
