@@ -175,7 +175,7 @@ class HybridEmbeddings(nn.Module):
     def forward(self, ids_tensor):
         
         fixed_ids = ((ids_tensor - NUM_SPECIAL) * ((ids_tensor >= NUM_SPECIAL)).long()).to(device)
-        learned_ids = ((ids_tensor) * ((ids_tensor <= NUM_SPECIAL)).long()).to(device)
+        learned_ids = ((ids_tensor) * ((ids_tensor < NUM_SPECIAL)).long()).to(device)
     
         embeddings = (
             self.fixed_embeddings(fixed_ids)
