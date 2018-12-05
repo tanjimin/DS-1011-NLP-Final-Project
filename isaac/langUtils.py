@@ -136,7 +136,19 @@ class langDataset(Dataset):
         inp = self.inp[key]
         out = self.out[key]
         
-        return [inp, out]
+        if inp[-1] != 3:
+            new_inp = inp[:-1].copy()
+            new_inp.append(3)
+        else:
+            new_inp = inp.copy()
+        
+        if out[-1] != 3:
+            new_out = out[:-1].copy()
+            new_out.append(3)
+        else:
+            new_out = out.copy()
+        
+        return [new_inp, new_out]
 
 def langCollateFn(batch):
     inp_list, out_list = [], []
@@ -222,6 +234,12 @@ def tensorToList(output):
     
     for i in range(output.size(1)):
         output_to_bleu.append([str(j) for j in output[:,i].tolist()])
+        
+        try:
+            first_pad = output_to_bleu[-1].index(PAD_ID)
+            output_to_bleu[-1] = output_to_bleu[-1][:first_pad]
+        except:
+            continue
         
     return output_to_bleu
 
