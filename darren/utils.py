@@ -99,7 +99,7 @@ def corpus_bleu(out_stream, ref_streams, ngrams, smooth='exp', smooth_floor=0.01
 
     correct = [0 for n in range(ngrams)]
     total = [0 for n in range(ngrams)]
-    fhs = [out_stream] + [ref_streams]
+    fhs = [out_stream] + ref_streams
     for lines in zip_longest(*fhs):
         if None in lines:
             raise EOFError("Source and reference streams have different lengths!")
