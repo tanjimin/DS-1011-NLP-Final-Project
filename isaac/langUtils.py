@@ -4,8 +4,10 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
 import torch.nn.functional as F
+from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+
 
 from utils import directories, load_zipped_pickle
 
@@ -15,7 +17,7 @@ torch.cuda.empty_cache()
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
 
-data_dir, emb_dir = directories()
+data_dir, emb_dir, fig_dir = directories()
 
 ################################################################
 ##Language Class
@@ -242,4 +244,61 @@ def tensorToList(output):
             continue
         
     return output_to_bleu
+
+################################################################
+##Encoder
+################################################################ 
+
+class EncoderRNN(nn.Module):
+
+    def __init__(self, params, raw_emb, learn_ids):
+    
+        super(EncoderRNN, self).__init__()
+        
+        self.hidden_size = params['hidden_size']
+        self.n_layers = params['n_layers']
+        
+        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
+        self.gru = nn.GRU(self.embedding.embedding_dim, params['hidden_size'], self.n_layers, bidirectional=True)
+        
+    def forward(self, inp, inp_lens):
+        #Embed input
+        embedded = self.embedding(inp)
+        #Pack padded
+        packed = pack_padded_sequence(embedded, inp_lens).to(device)
+        
+        #GRU
+        output, hidden = self.gru(packed)
+        #Pad packed
+        output, _ = pad_packed_sequence(output)
+        #Concat bidirectional layers
+        output = output[:, :, :self.hidden_size] + output[:, : ,self.hidden_size:]
+        return output, hidden
+
+    
+################################################################
+##Basic Decoder
+################################################################ 
+    
+    
+class DecoderRNN(nn.Module):
+    def __init__(self, params, raw_emb, learn_ids):
+        super(DecoderRNN, self).__init__()
+        
+        self.hidden_size = params['hidden_size']
+        self.n_layers = params['n_layers']
+        self.output_size = params['output_size']
+        
+        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
+        self.gru = nn.GRU(self.embedding.embedding_dim, params['hidden_size'], self.n_layers)
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, inp, hidden, encoder_output=None):
+        embedded = self.embedding(inp)
+        embedded = F.relu(embedded)
+
+        output, hidden = self.gru(embedded, hidden)
+        output = self.out(output).squeeze(0)
+        #output = F.softmax(output, dim=1).squeeze(0)
+        return output, hidden
 

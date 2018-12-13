@@ -20,10 +20,12 @@ def directories():
     if "\\" in os.getcwd():
         data_dir = '\\'.join(os.getcwd().split("\\")[:-1]) + '\\data\\'
         emb_dir = '\\'.join(os.getcwd().split("\\")[:-1]) + '\\embeddings\\'
+        fig_dir = '\\'.join(os.getcwd().split("\\")[:-1]) + '\\figures\\'
     else:
         data_dir = '/'.join(os.getcwd().split("/")[:-1]) + '/data/'
         emb_dir = '/'.join(os.getcwd().split("/")[:-1]) + '/embeddings/'
-    return data_dir, emb_dir
+        fig_dir = '/'.join(os.getcwd().split("/")[:-1]) + '/figures/'
+    return data_dir, emb_dir, fig_dir
 
 ################################################################
 ##Time Functions
