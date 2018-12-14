@@ -95,9 +95,9 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Time")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_loss".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_loss".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
 
         #PLOT SCORES
         df = pd.concat([pd.DataFrame({'X':np.arange(len(train_scores)), 'Y':train_scores, 'Acc':'Train'}), 
@@ -111,9 +111,9 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Epoch")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_scores".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_scores".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
 
         torch.cuda.empty_cache()
 

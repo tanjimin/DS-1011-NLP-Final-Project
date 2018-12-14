@@ -60,7 +60,8 @@ for lang in ["vi", "zh"]:
         #LOAD LANGS
         train_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(len(inp_lang.train_num)) if (len(inp_lang.train[i]) < inp_lang.max_length) & 
                                                                                                                          (len(out_lang.train[i]) < out_lang.max_length)])
-        overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(int(len(train_dataset) * .25))])
+        #overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(int(len(train_dataset) * .25))])
+        overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(5 * 64)])
         train_loader = torch.utils.data.DataLoader(dataset=overfit_dataset,
                                                    batch_size=BATCH_SIZE,
                                                    collate_fn=langCollateFn,
@@ -86,7 +87,7 @@ for lang in ["vi", "zh"]:
         criterion = nn.CrossEntropyLoss(ignore_index=PAD_ID).to(device)
 
         #FIT AND TRAIN
-        losses, train_scores, dev_scores = fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, 20, 300, lang)
+        losses, train_scores, dev_scores = fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, 5, 2, lang)
 
         #PLOT LOSSES
         plt.figure()
@@ -97,9 +98,9 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Time")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"wo_att\\lr\\{}_lr_{}_loss".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"wo_att\\lr\\{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"wo_att/lr/{}_lr_{}_loss".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"wo_att/lr/{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
 
         #PLOT SCORES
         df = pd.concat([pd.DataFrame({'X':np.arange(len(train_scores)), 'Y':train_scores, 'Acc':'Train'}), 
@@ -113,12 +114,13 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Epoch")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"wo_att\\lr\\{}_lr_{}_scores".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"wo_att\\lr\\{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"wo_att/lr/{}_lr_{}_scores".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"wo_att/lr/{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
 
         torch.cuda.empty_cache()
         
+print("Finished")
 
 
 
