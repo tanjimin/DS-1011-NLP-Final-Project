@@ -302,3 +302,42 @@ class DecoderRNN(nn.Module):
         #output = F.softmax(output, dim=1).squeeze(0)
         return output, hidden
 
+    
+################################################################
+##Local Decoder
+################################################################ 
+    
+    
+class LocalAttnDecoder(nn.Module):
+    def __init__(self, params, raw_emb, learn_ids):
+        super(LocalAttnDecoder, self).__init__()
+        
+        self.hidden_size = params['hidden_size']
+        self.output_size = params['output_size']
+        self.n_layers = params['n_layers']
+        self.dropout = params['dropout']
+
+        # Define layers
+        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
+        self.embedding_dropout = nn.Dropout(self.dropout)
+        self.gru = nn.GRU(self.embedding.embedding_dim, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout))
+        self.concat = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, inp, prev_hidden, encoder_output):
+        embedded = self.embedding(inp)
+        embedded = self.embedding_dropout(embedded)
+        
+        output, hidden = self.gru(embedded, prev_hidden)
+        
+        attn_energies = (torch.sum(output * encoder_output, dim=2)).t()
+        attn_weights = F.softmax(attn_energies, dim=1).unsqueeze(1)
+        
+        context = attn_weights.bmm(encoder_output.transpose(0, 1)).squeeze(1)
+        output = output.squeeze(0)
+        
+        concat_input = torch.cat((output, context), 1)
+        concat_output = torch.tanh(self.concat(concat_input))
+
+        output = self.out(concat_output)
+        return output, hidden

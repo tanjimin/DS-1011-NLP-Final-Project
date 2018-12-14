@@ -21,7 +21,7 @@ torch.cuda.empty_cache()
 
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 EARLY_STOP = 5
 CLIP = 10
 
@@ -122,7 +122,7 @@ def bleuEval(encoder, decoder, data_loader, print_translation, out_lang):
         decoder_outputs = []
         
         for i, (inp, inp_lens, output, out_mask, out_max) in enumerate(data_loader):
-            if i * BATCH_SIZE >= 10000:
+            if i * inp.size(1) >= 10000:
                 break
             
             true_outputs.extend([[str(tok.item()) for tok in output[:,ind] if tok != PAD_ID] for ind in range(output.size(1))])
