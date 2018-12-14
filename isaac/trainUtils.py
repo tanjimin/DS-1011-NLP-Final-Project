@@ -54,13 +54,15 @@ def fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim
                 losses.append(print_loss_avg)
                 total_loss = 0
         
-        if (epoch > 0) & (abs(losses[-1] - losses[-2]) < 0.00001):
-            early_stop -= 1
-            if early_stop == 0:
-                print("Converged - Needed only {} Epochs".format(epoch))
-                break
-        else:
-            early_stop = EARLY_STOP
+                if len(losses) > 3:
+                    if abs(losses[-1] - losses[-2]) < 0.00001:
+                        early_stop -= 1
+                    else:
+                        early_stop = EARLY_STOP
+        
+        if early_stop == 0:
+            print("Converged - Needed only {} Epochs".format(epoch))
+            break
           
     return losses, train_scores, dev_scores
 
@@ -158,6 +160,7 @@ def bleuEval(encoder, decoder, data_loader, print_translation, out_lang):
     if print_translation:
         print("True Translation: {}".format([out_lang.id2word[int(tok)] for tok in true_outputs[0]]))        
         print("Predicted Translation: {}".format([out_lang.id2word[int(tok)] for tok in decoder_outputs[0]]))
+        print("")
 
     score = corpus_bleu(decoder_outputs, true_outputs, 4)
     return score
