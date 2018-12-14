@@ -17,8 +17,8 @@ import torch.nn.functional as F
 
 from torch import optim
 
-from utils import asMinutes, timeSince, load_zipped_pickle, corpus_bleu, directories, save_zipped_pickle, load_zipped_pickle
-from langUtils import loadLangPairs, langDataset, langCollateFn, initHybridEmbeddings, EncoderRNN, DecoderRNN
+from utils import asMinutes, timeSince, load_zipped_pickle, corpus_bleu, directories
+from langUtils import loadLangPairs, langDataset, langCollateFn, initHybridEmbeddings, EncoderRNN, LocalAttnDecoder
 from trainUtils import train, fit, bleuEval
 
 import matplotlib.pyplot as plt
@@ -38,12 +38,10 @@ BATCH_SIZE = 64
 
 grid = 10.0**np.arange(-4,1)
 
-results = {}
 
 for lang in ["vi", "zh"]:
     
     print("Starting Language: {}".format(lang))
-    results[lang] = {}
     
     inp_lang, out_lang = loadLangPairs(lang)
 
@@ -60,8 +58,7 @@ for lang in ["vi", "zh"]:
         #LOAD LANGS
         train_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(len(inp_lang.train_num)) if (len(inp_lang.train[i]) < inp_lang.max_length) & 
                                                                                                                          (len(out_lang.train[i]) < out_lang.max_length)])
-        #overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(int(len(train_dataset) * .25))])
-        overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(5 * 64)])
+        overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(int(len(train_dataset) * .25))])
         train_loader = torch.utils.data.DataLoader(dataset=overfit_dataset,
                                                    batch_size=BATCH_SIZE,
                                                    collate_fn=langCollateFn,
@@ -75,19 +72,19 @@ for lang in ["vi", "zh"]:
 
         #SET PARAMS
         encoder_params = {'hidden_size':250, 'n_layers':1}
-        decoder_params = {'hidden_size':encoder_params['hidden_size'], 'n_layers':1, 'output_size':out_lang.n_words}
+        decoder_params = {'hidden_size':encoder_params['hidden_size'], 'n_layers':1, 'output_size':out_lang.n_words, 'dropout':0.1}
 
         encoder = EncoderRNN(encoder_params, inp_lang.emb, inp_lang.learn_ids).to(device)
         encoder_optim = optim.Adam(encoder.parameters(), lr=i)
 
-        decoder = DecoderRNN(decoder_params, out_lang.emb, out_lang.learn_ids).to(device)
+        decoder = LocalAttnDecoder(decoder_params, out_lang.emb, out_lang.learn_ids).to(device)
         decoder_optim = optim.Adam(decoder.parameters(), lr=i)
 
         #SET CRITERION
         criterion = nn.CrossEntropyLoss(ignore_index=PAD_ID).to(device)
 
         #FIT AND TRAIN
-        losses, train_scores, dev_scores = fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, 5, 2, lang)
+        losses, train_scores, dev_scores = fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, 10, 300, lang)
 
         #PLOT LOSSES
         plt.figure()
@@ -98,9 +95,9 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Time")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"wo_att\\lr\\{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"wo_att/lr/{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
 
         #PLOT SCORES
         df = pd.concat([pd.DataFrame({'X':np.arange(len(train_scores)), 'Y':train_scores, 'Acc':'Train'}), 
@@ -114,13 +111,16 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Epoch")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"wo_att\\lr\\{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"wo_att/lr/{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
 
         torch.cuda.empty_cache()
-        
-print("Finished")
+
+
+
+
+
 
 
 

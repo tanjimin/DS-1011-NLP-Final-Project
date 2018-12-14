@@ -34,11 +34,10 @@ data_dir, em_dir, fig_dir = directories()
 
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 LEARNING_RATE = 0.01
-grid = range(200, 400, 25)
-
+grid = [int(h) for h in 64 * np.arange(1, 6)]
 
 
 for lang in ["vi", "zh"]:
@@ -87,7 +86,7 @@ for lang in ["vi", "zh"]:
         criterion = nn.CrossEntropyLoss(ignore_index=PAD_ID).to(device)
 
         #FIT AND TRAIN
-        losses, train_scores, dev_scores = fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, 20, 300, lang)
+        losses, train_scores, dev_scores = fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, 20, 500, lang)
 
         #PLOT LOSSES
         plt.figure()
@@ -96,7 +95,11 @@ for lang in ["vi", "zh"]:
         pp.set_title('Loss Over Time | Hidden Size: {}'.format(i))
         pp.set_ylabel("Loss")
         pp.set_xlabel("Time")
-        pp.get_figure().savefig(fig_dir+"wo_att\\hs\\{}_hs_{}_loss".format(lang, str(i)), bbox_inches='tight')
+        
+        if "\\" in os.getcwd():
+            pp.get_figure().savefig(fig_dir+"wo_att\\hs\\{}_hs_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
+        else:
+            pp.get_figure().savefig(fig_dir+"wo_att/hs/{}_hs_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
 
         #PLOT SCORES
         df = pd.concat([pd.DataFrame({'X':np.arange(len(train_scores)), 'Y':train_scores, 'Acc':'Train'}), 
@@ -108,7 +111,11 @@ for lang in ["vi", "zh"]:
         pp.set_title("Scores")
         pp.set_ylabel("Accuracy")
         pp.set_xlabel("Epoch")
-        pp.get_figure().savefig(fig_dir+"wo_att\\hs\\{}_hs_{}_scores".format(lang, str(i)), bbox_inches='tight')
+        
+        if "\\" in os.getcwd():
+            pp.get_figure().savefig(fig_dir+"wo_att\\hs\\{}_hs_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
+        else:
+            pp.get_figure().savefig(fig_dir+"wo_att/hs/{}_hs_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
 
         torch.cuda.empty_cache()
 
