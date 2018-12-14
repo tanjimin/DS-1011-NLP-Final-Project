@@ -34,16 +34,13 @@ data_dir, em_dir, fig_dir = directories()
 
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 
 grid = 10.0**np.arange(-4,1)
-
-results = {}
 
 for lang in ["vi", "zh"]:
     
     print("Starting Language: {}".format(lang))
-    results[lang] = {}
     
     inp_lang, out_lang = loadLangPairs(lang)
 
@@ -60,8 +57,8 @@ for lang in ["vi", "zh"]:
         #LOAD LANGS
         train_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(len(inp_lang.train_num)) if (len(inp_lang.train[i]) < inp_lang.max_length) & 
                                                                                                                          (len(out_lang.train[i]) < out_lang.max_length)])
-        #overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(int(len(train_dataset) * .25))])
-        overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(5 * 64)])
+        overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(int(len(train_dataset) * .25))])
+        #overfit_dataset = langDataset([(inp_lang.train_num[i], out_lang.train_num[i]) for i in range(5 * 64)])
         train_loader = torch.utils.data.DataLoader(dataset=overfit_dataset,
                                                    batch_size=BATCH_SIZE,
                                                    collate_fn=langCollateFn,

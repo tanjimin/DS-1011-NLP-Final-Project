@@ -29,6 +29,8 @@ CLIP = 10
 ##Fit
 ################################################################
 
+##ADAPTED FROM ##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
+
 def fit(train_loader, dev_loader, encoder, decoder, encoder_optim, decoder_optim, criterion, epochs, print_every, lang):
     start = time.time()
     print('Initializing')
@@ -77,6 +79,8 @@ def loadLang(lang):
 ################################################################
 ##Train Epoch
 ################################################################
+
+##ADAPTED FROM ##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
 
 def train(inp, inp_lens, output, out_mask, out_max, encoder, decoder, encoder_optim, decoder_optim, criterion):
     
@@ -132,14 +136,12 @@ def bleuEval(encoder, decoder, data_loader, print_translation, out_lang):
             decoder_hidden = encoder_hidden[decoder.n_layers:]
 
             all_tokens = decoder_input.clone()
-            #all_scores = torch.zeros([1,inp.size(1)], device=device)
 
             for idx in range(1, out_max):
                 decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, encoder_output)
                 decoder_scores, decoder_input = decoder_output.topk(1)
 
                 all_tokens = torch.cat((all_tokens, decoder_input.t()), dim=0)
-                #all_scores = torch.cat((all_scores, decoder_scores.t()), dim=0)
 
                 decoder_input = decoder_input.t()
 
