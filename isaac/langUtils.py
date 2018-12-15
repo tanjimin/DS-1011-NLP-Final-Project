@@ -4,8 +4,10 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
 import torch.nn.functional as F
+from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+
 
 from utils import directories, load_zipped_pickle
 
@@ -15,7 +17,7 @@ torch.cuda.empty_cache()
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
 
-data_dir, emb_dir = directories()
+data_dir, emb_dir, fig_dir = directories()
 
 ################################################################
 ##Language Class
@@ -92,7 +94,7 @@ def loadLangPairs(lang):
 ##DataLoader
 ################################################################
 
-###ADD CITATION
+##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
 
 def zeroPadding(l, fillvalue=PAD_ID):
     return list(zip_longest(*l, fillvalue=fillvalue))
@@ -172,7 +174,7 @@ def langCollateFn(batch):
 ##Embeddings
 ################################################################    
 
-###ADD CITATION
+###Modified version of https://github.com/zphang/usc_dae/blob/master/src/datasets/data.py#L185-L213
 
 class HybridEmbeddings(nn.Module):
     def __init__(self, fixed_embeddings, learned_embeddings):
@@ -225,21 +227,102 @@ def initHybridEmbeddings(raw_emb, learn_ids):
     return embeddings
 
 ################################################################
-##Embeddings
+##Encoder
 ################################################################ 
 
+##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
 
-def tensorToList(output):
-    output_to_bleu = []
+
+class EncoderRNN(nn.Module):
+
+    def __init__(self, params, raw_emb, learn_ids):
     
-    for i in range(output.size(1)):
-        output_to_bleu.append([str(j) for j in output[:,i].tolist()])
+        super(EncoderRNN, self).__init__()
         
-        try:
-            first_pad = output_to_bleu[-1].index(PAD_ID)
-            output_to_bleu[-1] = output_to_bleu[-1][:first_pad]
-        except:
-            continue
+        self.hidden_size = params['hidden_size']
+        self.n_layers = params['n_layers']
         
-    return output_to_bleu
+        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
+        self.gru = nn.GRU(self.embedding.embedding_dim, params['hidden_size'], self.n_layers, bidirectional=True)
+        
+    def forward(self, inp, inp_lens):
+        #Embed input
+        embedded = self.embedding(inp)
+        #Pack padded
+        packed = pack_padded_sequence(embedded, inp_lens).to(device)
+        
+        #GRU
+        output, hidden = self.gru(packed)
+        #Pad packed
+        output, _ = pad_packed_sequence(output)
+        #Concat bidirectional layers
+        output = output[:, :, :self.hidden_size] + output[:, : ,self.hidden_size:]
+        return output, hidden
 
+    
+################################################################
+##Basic Decoder
+################################################################ 
+    
+    
+class DecoderRNN(nn.Module):
+    def __init__(self, params, raw_emb, learn_ids):
+        super(DecoderRNN, self).__init__()
+        
+        self.hidden_size = params['hidden_size']
+        self.n_layers = params['n_layers']
+        self.output_size = params['output_size']
+        
+        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
+        self.gru = nn.GRU(self.embedding.embedding_dim, params['hidden_size'], self.n_layers)
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, inp, hidden, encoder_output=None):
+        embedded = self.embedding(inp)
+        embedded = F.relu(embedded)
+
+        output, hidden = self.gru(embedded, hidden)
+        output = self.out(output).squeeze(0)
+        #output = F.softmax(output, dim=1).squeeze(0)
+        return output, hidden
+
+    
+################################################################
+##Luong Decoder
+################################################################ 
+    
+##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
+    
+class LuongAttnDecoder(nn.Module):
+    def __init__(self, params, raw_emb, learn_ids):
+        super(LuongAttnDecoder, self).__init__()
+        
+        self.hidden_size = params['hidden_size']
+        self.output_size = params['output_size']
+        self.n_layers = params['n_layers']
+        self.dropout = params['dropout']
+
+        # Define layers
+        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
+        self.embedding_dropout = nn.Dropout(self.dropout)
+        self.gru = nn.GRU(self.embedding.embedding_dim, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout))
+        self.concat = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, inp, prev_hidden, encoder_output):
+        embedded = self.embedding(inp)
+        embedded = self.embedding_dropout(embedded)
+        
+        output, hidden = self.gru(embedded, prev_hidden)
+        
+        attn_energies = (torch.sum(output * encoder_output, dim=2)).t()
+        attn_weights = F.softmax(attn_energies, dim=1).unsqueeze(1)
+        
+        context = attn_weights.bmm(encoder_output.transpose(0, 1)).squeeze(1)
+        output = output.squeeze(0)
+        
+        concat_input = torch.cat((output, context), 1)
+        concat_output = torch.tanh(self.concat(concat_input))
+
+        output = self.out(concat_output)
+        return output, hidden

@@ -20,10 +20,12 @@ def directories():
     if "\\" in os.getcwd():
         data_dir = '\\'.join(os.getcwd().split("\\")[:-1]) + '\\data\\'
         emb_dir = '\\'.join(os.getcwd().split("\\")[:-1]) + '\\embeddings\\'
+        fig_dir = '\\'.join(os.getcwd().split("\\")[:-1]) + '\\figures\\'
     else:
         data_dir = '/'.join(os.getcwd().split("/")[:-1]) + '/data/'
         emb_dir = '/'.join(os.getcwd().split("/")[:-1]) + '/embeddings/'
-    return data_dir, emb_dir
+        fig_dir = '/'.join(os.getcwd().split("/")[:-1]) + '/figures/'
+    return data_dir, emb_dir, fig_dir
 
 ################################################################
 ##Time Functions
@@ -155,5 +157,17 @@ def compute_bleu(correct, total, ngrams, out_len, ref_len,
 
     bleu = brevity_penalty * math.exp(sum(map(lambda x: -9999999999 if x == 0.0 else math.log(x), precisions[:effective_order])) / effective_order)
     return bleu
+
+
+#############
+
+def save_zipped_pickle(obj, filename, protocol=-1):
+    with gzip.open(filename, 'wb') as f:
+        pkl.dump(obj, f, protocol)
+
+def load_zipped_pickle(filename):
+    with gzip.open(filename, 'rb') as f:
+        loaded_object = pkl.load(f)
+        return loaded_object
     
     

@@ -102,7 +102,8 @@ def corpus_bleu(out_stream, ref_streams, ngrams, smooth='exp', smooth_floor=0.01
     fhs = [out_stream] + ref_streams
     for lines in zip_longest(*fhs):
         if None in lines:
-            raise EOFError("Source and reference streams have different lengths!")
+            continue
+            #raise EOFError("Source and reference streams have different lengths!")
 
         output = lines[0]
         refs = lines[1]
