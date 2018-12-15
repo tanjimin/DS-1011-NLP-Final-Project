@@ -13,7 +13,7 @@ from langUtils import loadLangPairs, langDataset, langCollateFn, initHybridEmbed
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-vi, en = loadLangPairs("vi")
+vi, en = loadLangPairs("zh")
 BATCH_SIZE = 32
 train_dataset = langDataset([(vi.train_num[i], en.train_num[i]) for i in range(len(vi.train_num)) if (len(vi.train[i]) < vi.max_length) & (len(en.train[i]) < en.max_length)])
 overfit_dataset = langDataset([(vi.train_num[i], en.train_num[i]) for i in range(32)])
@@ -234,8 +234,8 @@ def fitAttention(train_loader, dev_loader, encoder, decoder, encoder_opt, decode
             output = output.to(device)
             loss += trainAttention(inp, output, out_max, encoder, decoder, encoder_opt, decoder_opt, criterion, batch_size)
             if i % print_every == 0 and i > 0:
-                pkl.dump(encoder, open('vi-g-attn-encoder-adam0.01.p', 'wb'))
-                pkl.dump(decoder, open('vi-g-attn-decoder-adam0.01.p', 'wb'))
+                pkl.dump(encoder, open('zh-g-attn-encoder-sgd0.01.p', 'wb'))
+                pkl.dump(decoder, open('zh-g-attn-decoder-sgd0.01.p', 'wb'))
                 losses.append(loss/i)
                 print("Time Elapsed: {} | Loss: {:.4}".format(asMinutes(time.time() - start),
                                                                                 loss/i))
@@ -258,11 +258,14 @@ MAX_LENGTH = 100
 criterion = nn.CrossEntropyLoss(ignore_index=0).to(device)
 
 encoder = EncoderRNN(input_size = vi.n_words, hidden_size = HIDDEN_SIZE, num_layers = 1, batch_size = BATCH_SIZE, raw_emb=vi.emb, learn_ids=vi.learn_ids).to(device)
-# decoder = DecoderRNN(hidden_size = HIDDEN_SIZE, output_size = en.n_words, num_layers = 1, batch_size = BATCH_SIZE, raw_emb=en.emb, learn_ids=en.learn_ids).to(device)
 decoder = AttentionDecoderRNN(hidden_size = HIDDEN_SIZE, output_size = en.n_words, num_layers = 1, max_length = MAX_LENGTH, batch_size = BATCH_SIZE, raw_emb = en.emb, learn_ids = en.learn_ids, dropout_p=0.1).to(device)
 
-encoder_optimizer = optim.Adam(encoder.parameters(), lr=LEARNING_RATE)
-decoder_optimizer = optim.Adam(decoder.parameters(), lr=LEARNING_RATE)
+#encoder = pkl.load(open('zh-g-attn-encoder-sgd0.01.p', 'rb'))
+#decoder = pkl.load(open('zh-g-attn-decoder-adam0.01.p', 'rb'))
+#encoder = pkl.load(open('zh-g-attn-encoder-sgd0.01.p', 'rb'))
+
+encoder_optimizer = optim.SGD(encoder.parameters(), lr=LEARNING_RATE)
+decoder_optimizer = optim.SGD(decoder.parameters(), lr=LEARNING_RATE)
 
 
 fitAttention(train_loader, dev_loader, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, BATCH_SIZE, 100, 300)

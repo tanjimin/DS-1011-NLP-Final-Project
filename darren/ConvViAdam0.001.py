@@ -34,31 +34,40 @@ dev_loader = torch.utils.data.DataLoader(dataset=dev_dataset,
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 
 
-class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, batch_size, raw_emb, learn_ids):
-        super(EncoderRNN, self).__init__()
-        self.hidden_size = hidden_size
+class ConvEncoder(nn.Module):
+    def __init__(self, vocab_size, embedding_size, max_len, batch_size, raw_emb, learn_ids, dropout=0.2,
+                 num_channels_attn=512, num_channels_conv=512,
+                 kernel_size=3, num_layers=5):
+        super(ConvEncoder, self).__init__()
         self.batch_size = batch_size
-        # input_size: input dictionary size
-        self.embedding = initHybridEmbeddings(raw_emb, learn_ids)
-#         self.embedding = nn.Embedding(input_size, hidden_size)
+        self.hidden_size = embedding_size
+        self.position_embedding = nn.Embedding(max_len, embedding_size)
+        self.word_embedding = initHybridEmbeddings(raw_emb, learn_ids)
         self.num_layers = num_layers
-        self.gru = nn.GRU(self.hidden_size, 
-                          hidden_size, 
-                          num_layers= num_layers, 
-                          batch_first = True) # BATCH FIRST
+        self.dropout = dropout
 
-    def forward(self, encoder_input, hidden_input):
-        # encoder_input: batch * 1 (for 1 word each time)
-        embedded_input = self.embedding(encoder_input)
-        # embedded_input: batch * 1 * emb_dim
-        # hidden_input: batch * 1(layer) * hidden_size
-        output, hidden = self.gru(embedded_input, hidden_input)
-        return output, hidden
+        self.conv = nn.ModuleList([nn.Conv1d(num_channels_conv, num_channels_conv, kernel_size,
+                                      padding=kernel_size // 2) for _ in range(num_layers)])
 
-    def initHidden(self):
-        return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=device)
+    def forward(self, position_ids, sentence_as_wordids):
+        # Retrieving position and word embeddings
+        position_embedding = self.position_embedding(position_ids).unsqueeze(0)
+        position_embedding = position_embedding.repeat(self.batch_size, 1, 1)
+        word_embedding = self.word_embedding(sentence_as_wordids)
         
+        # Applying dropout to the sum of position + word embeddings
+        embedded = F.dropout(position_embedding + word_embedding, self.dropout, self.training)
+        
+        # Num Batches * Length * Channel ==> Num Batches * Channel * Length
+        embedded = embedded.transpose(1, 2)
+        
+        # emdedded: Num Batches * Channel * Length
+        cnn = embedded
+        for i, layer in enumerate(self.conv):
+            # layer(cnn) is the convolution operation on the input cnn after which
+            # we add the original input creating a residual connection
+            cnn = F.tanh(layer(cnn)+cnn)    
+        return cnn        
         
 class AttentionDecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size, num_layers, max_length, batch_size, raw_emb, learn_ids, dropout_p=0.1):
@@ -66,6 +75,7 @@ class AttentionDecoderRNN(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.dropout_p = dropout_p
+        self.batch_size = batch_size
         # Max length for a sentence
         self.max_length = max_length
         self.num_layers = num_layers
@@ -125,23 +135,18 @@ class AttentionDecoderRNN(nn.Module):
 def trainAttention(inp, output, out_max, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, batch_size):
     total_avg_loss = 0
     loss = 0
-    encoder_hidden = encoder.initHidden()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
     input_len = inp.shape[1]
     encoder_outputs = torch.zeros(input_len, batch_size, 1, HIDDEN_SIZE, device=device)
-    encoder_hiddens = torch.zeros(input_len, 1, batch_size, HIDDEN_SIZE, device=device)
-    # Encode
-    for ec_idx in range(input_len):
-        # input batch_size * 1
-        encoder_output, encoder_hidden = encoder(inp[:, ec_idx].unsqueeze(1), encoder_hidden)
-        encoder_outputs[ec_idx] = encoder_output
-        encoder_hiddens[ec_idx] = encoder_hidden
+    position_ids = torch.LongTensor(range(0, input_len)).to(device)
+    encoder_conv_out = encoder(position_ids, inp)
+    encoder_hiddens = encoder_conv_out.unsqueeze(1).transpose(0, 3).transpose(2,3)
 
     # Decode
     decoder_input = torch.tensor([SOS_ID] * batch_size, device=device)
-    decoder_hidden = encoder_hidden
+    decoder_hidden = decoder.initHidden()
 
     # Always use Teacher Forcing
     for dc_idx in range(out_max):
@@ -176,21 +181,15 @@ def bleuEvalAttention(encoder, decoder, data_loader, batch_size):
             inp = inp.transpose(0,1).to(device)
             output = output.transpose(0,1).to(device)
             true_outputs.append([[str(tok.item()) for tok in out if tok != 0] for out in output])
-            encoder_hidden = encoder.initHidden()
             input_len = inp.shape[1]
             encoder_outputs = torch.zeros(input_len, batch_size, 1, HIDDEN_SIZE, device=device)
-            encoder_hiddens = torch.zeros(input_len, 1, batch_size, HIDDEN_SIZE, device=device)
-
-            # Encode
-            for ec_idx in range(input_len):
-                # input batch_size * 1
-                encoder_output, encoder_hidden = encoder(inp[:, ec_idx].unsqueeze(1), encoder_hidden)
-                encoder_outputs[ec_idx] = encoder_output
-                encoder_hiddens[ec_idx] = encoder_hidden
+            position_ids = torch.LongTensor(range(0, input_len)).to(device)
+            encoder_conv_out = encoder(position_ids, inp)
+            encoder_hiddens = encoder_conv_out.unsqueeze(1).transpose(0,3).transpose(2,3)
 
             # Decode
             decoder_input = torch.tensor([SOS_ID] * batch_size, device=device)
-            decoder_hidden = encoder_hidden
+            decoder_hidden = decoder.initHidden()
 
             # Greedy
             for dc_idx in range(out_max):
@@ -234,8 +233,8 @@ def fitAttention(train_loader, dev_loader, encoder, decoder, encoder_opt, decode
             output = output.to(device)
             loss += trainAttention(inp, output, out_max, encoder, decoder, encoder_opt, decoder_opt, criterion, batch_size)
             if i % print_every == 0 and i > 0:
-                pkl.dump(encoder, open('vi-g-attn-encoder-adam0.01.p', 'wb'))
-                pkl.dump(decoder, open('vi-g-attn-decoder-adam0.01.p', 'wb'))
+                pkl.dump(encoder, open('vi-conv-encoder-adam0.001.p', 'wb'))
+                pkl.dump(decoder, open('vi-conv-decoder-adam0.001.p', 'wb'))
                 losses.append(loss/i)
                 print("Time Elapsed: {} | Loss: {:.4}".format(asMinutes(time.time() - start),
                                                                                 loss/i))
@@ -243,7 +242,7 @@ def fitAttention(train_loader, dev_loader, encoder, decoder, encoder_opt, decode
 #         dev_score = bleuEvalATtention(encoder, decoder, dev_loader, batch_size)
         train_scores.append(train_score)
 #         dev_scores.append(dev_score)
-        print("Epoch: {} | Time Elapsed: {} | Loss: {:.4} | Train BLEU: {:.4} | Dev BLEU: ".format(epoch + 1, 
+        print("Epoch: {} | Time Elapsed: {} | Loss: {:.4} | Train BLEU: {:.4} | Dev BLEU: ".format(epoch + 16, 
                                                                                                         asMinutes(time.time() - start),
                                                                                                         loss/len(train_loader), 
                                                                                                         train_score))
@@ -252,17 +251,18 @@ def fitAttention(train_loader, dev_loader, encoder, decoder, encoder_opt, decode
 # dic_size_vi = len(id2word_vi_dic.keys())
 # dic_size_en = len(id2word_en_dic.keys())
 HIDDEN_SIZE = 300
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.0001
 MAX_LENGTH = 100
 ## Add ignore index
 criterion = nn.CrossEntropyLoss(ignore_index=0).to(device)
 
-encoder = EncoderRNN(input_size = vi.n_words, hidden_size = HIDDEN_SIZE, num_layers = 1, batch_size = BATCH_SIZE, raw_emb=vi.emb, learn_ids=vi.learn_ids).to(device)
-# decoder = DecoderRNN(hidden_size = HIDDEN_SIZE, output_size = en.n_words, num_layers = 1, batch_size = BATCH_SIZE, raw_emb=en.emb, learn_ids=en.learn_ids).to(device)
-decoder = AttentionDecoderRNN(hidden_size = HIDDEN_SIZE, output_size = en.n_words, num_layers = 1, max_length = MAX_LENGTH, batch_size = BATCH_SIZE, raw_emb = en.emb, learn_ids = en.learn_ids, dropout_p=0.1).to(device)
+#encoder = ConvEncoder(vocab_size = vi.n_words, embedding_size = 300, max_len=MAX_LENGTH, batch_size = BATCH_SIZE, dropout=0.2, num_channels_attn=HIDDEN_SIZE, num_channels_conv=300, raw_emb = vi.emb, learn_ids = vi.learn_ids).to(device)
 
+#decoder = AttentionDecoderRNN(hidden_size = HIDDEN_SIZE, output_size = en.n_words, num_layers = 1, max_length = MAX_LENGTH, batch_size = BATCH_SIZE, raw_emb = en.emb, learn_ids = en.learn_ids, dropout_p=0.1).to(device)
+encoder = pkl.load(open('vi-conv-encoder-adam0.001.p', 'rb'))
+decoder = pkl.load(open('vi-conv-decoder-adam0.001.p', 'rb'))
 encoder_optimizer = optim.Adam(encoder.parameters(), lr=LEARNING_RATE)
 decoder_optimizer = optim.Adam(decoder.parameters(), lr=LEARNING_RATE)
 
 
-fitAttention(train_loader, dev_loader, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, BATCH_SIZE, 100, 300)
+fitAttention(train_loader, dev_loader, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, BATCH_SIZE, 5, 300)

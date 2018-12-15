@@ -13,7 +13,7 @@ from langUtils import loadLangPairs, langDataset, langCollateFn, initHybridEmbed
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-vi, en = loadLangPairs("vi")
+vi, en = loadLangPairs("zh")
 BATCH_SIZE = 32
 train_dataset = langDataset([(vi.train_num[i], en.train_num[i]) for i in range(len(vi.train_num)) if (len(vi.train[i]) < vi.max_length) & (len(en.train[i]) < en.max_length)])
 overfit_dataset = langDataset([(vi.train_num[i], en.train_num[i]) for i in range(32)])
