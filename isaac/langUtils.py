@@ -94,7 +94,7 @@ def loadLangPairs(lang):
 ##DataLoader
 ################################################################
 
-###ADD CITATION
+##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
 
 def zeroPadding(l, fillvalue=PAD_ID):
     return list(zip_longest(*l, fillvalue=fillvalue))
@@ -174,7 +174,7 @@ def langCollateFn(batch):
 ##Embeddings
 ################################################################    
 
-###ADD CITATION
+###Modified version of https://github.com/zphang/usc_dae/blob/master/src/datasets/data.py#L185-L213
 
 class HybridEmbeddings(nn.Module):
     def __init__(self, fixed_embeddings, learned_embeddings):
@@ -227,27 +227,11 @@ def initHybridEmbeddings(raw_emb, learn_ids):
     return embeddings
 
 ################################################################
-##Embeddings
-################################################################ 
-
-
-def tensorToList(output):
-    output_to_bleu = []
-    
-    for i in range(output.size(1)):
-        output_to_bleu.append([str(j) for j in output[:,i].tolist()])
-        
-        try:
-            first_pad = output_to_bleu[-1].index(PAD_ID)
-            output_to_bleu[-1] = output_to_bleu[-1][:first_pad]
-        except:
-            continue
-        
-    return output_to_bleu
-
-################################################################
 ##Encoder
 ################################################################ 
+
+##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
+
 
 class EncoderRNN(nn.Module):
 
@@ -304,13 +288,14 @@ class DecoderRNN(nn.Module):
 
     
 ################################################################
-##Local Decoder
+##Luong Decoder
 ################################################################ 
     
+##ADAPTED FROM https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
     
-class LocalAttnDecoder(nn.Module):
+class LuongAttnDecoder(nn.Module):
     def __init__(self, params, raw_emb, learn_ids):
-        super(LocalAttnDecoder, self).__init__()
+        super(LuongAttnDecoder, self).__init__()
         
         self.hidden_size = params['hidden_size']
         self.output_size = params['output_size']

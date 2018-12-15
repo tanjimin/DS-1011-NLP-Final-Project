@@ -34,7 +34,7 @@ data_dir, em_dir, fig_dir = directories()
 
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 LEARNING_RATE = 0.01
 grid = [int(h) for h in 64 * np.arange(1, 6)]

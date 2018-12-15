@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch import optim
 
 from utils import asMinutes, timeSince, load_zipped_pickle, corpus_bleu, directories
-from langUtils import loadLangPairs, langDataset, langCollateFn, initHybridEmbeddings, EncoderRNN, LocalAttnDecoder
+from langUtils import loadLangPairs, langDataset, langCollateFn, initHybridEmbeddings, EncoderRNN, LuongAttnDecoder
 from trainUtils import train, fit, bleuEval
 
 import matplotlib.pyplot as plt
@@ -34,7 +34,7 @@ data_dir, em_dir, fig_dir = directories()
 
 SPECIAL_SYMBOLS_ID = PAD_ID, UNK_ID, SOS_ID, EOS_ID = 0, 1, 2, 3
 NUM_SPECIAL = len(SPECIAL_SYMBOLS_ID)
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 
 grid = 10.0**np.arange(-4,1)
 
@@ -77,7 +77,7 @@ for lang in ["vi", "zh"]:
         encoder = EncoderRNN(encoder_params, inp_lang.emb, inp_lang.learn_ids).to(device)
         encoder_optim = optim.Adam(encoder.parameters(), lr=i)
 
-        decoder = LocalAttnDecoder(decoder_params, out_lang.emb, out_lang.learn_ids).to(device)
+        decoder = LuongAttnDecoder(decoder_params, out_lang.emb, out_lang.learn_ids).to(device)
         decoder_optim = optim.Adam(decoder.parameters(), lr=i)
 
         #SET CRITERION
@@ -95,9 +95,9 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Time")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"Luong_att\\lr\\{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"Luong_att/lr/{}_lr_{}_loss.png".format(lang, str(i)), bbox_inches='tight')
 
         #PLOT SCORES
         df = pd.concat([pd.DataFrame({'X':np.arange(len(train_scores)), 'Y':train_scores, 'Acc':'Train'}), 
@@ -111,9 +111,9 @@ for lang in ["vi", "zh"]:
         pp.set_xlabel("Epoch")
         
         if "\\" in os.getcwd():
-            pp.get_figure().savefig(fig_dir+"local_att\\lr\\{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"Luong_att\\lr\\{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
         else:
-            pp.get_figure().savefig(fig_dir+"local_att/lr/{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
+            pp.get_figure().savefig(fig_dir+"Luong_att/lr/{}_lr_{}_scores.png".format(lang, str(i)), bbox_inches='tight')
 
         torch.cuda.empty_cache()
 
